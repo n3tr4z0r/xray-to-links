@@ -1,0 +1,1164 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#0f1419" />
+  <meta name="description" content="Локальный конвертер Xray/Happ JSON в ссылки vless://, vmess://, trojan://, ss:// и hy2://. Данные не покидают браузер." />
+  <title>Xray JSON → ссылки</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23121920'/%3E%3Cpath d='M11 9.5 7.5 16 11 22.5' fill='none' stroke='%234cc2ff' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cpath d='M21 9.5 24.5 16 21 22.5' fill='none' stroke='%237ee0a8' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'/%3E%3Ccircle cx='16' cy='16' r='2.2' fill='%23ffb454'/%3E%3C/svg%3E" />
+  <style>
+    :root {
+      --bg: #0f1419;
+      --panel: #171e27;
+      --panel-2: #1d2630;
+      --line: #2a3542;
+      --text: #e8eef5;
+      --muted: #8b9aab;
+      --accent: #4cc2ff;
+      --accent-2: #7ee0a8;
+      --warn: #ffb454;
+      --err: #ff6b7a;
+      --shadow: 0 18px 50px rgba(0, 0, 0, .35);
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text); font: 15px/1.45 "Segoe UI", system-ui, sans-serif; }
+    body {
+      min-height: 100vh;
+      background:
+        radial-gradient(1200px 500px at 10% -10%, #1a3a55 0%, transparent 55%),
+        radial-gradient(900px 400px at 100% 0%, #16332c 0%, transparent 50%),
+        var(--bg);
+    }
+    .wrap { max-width: 1100px; margin: 0 auto; padding: 28px 18px 60px; }
+    .title { display: flex; gap: 12px; align-items: center; }
+    .title svg { flex: 0 0 auto; }
+    h1 { font-size: 26px; margin: 0; letter-spacing: .2px; }
+    .sub { color: var(--muted); margin: 8px 0 22px; }
+    .grid { display: grid; gap: 16px; }
+    .card {
+      background: linear-gradient(180deg, var(--panel), var(--panel-2));
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 16px;
+      box-shadow: var(--shadow);
+    }
+    label { display: block; color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .08em; margin-bottom: 8px; }
+    textarea, input[type="text"], input[type="search"], select {
+      width: 100%;
+      background: #0c1116;
+      color: var(--text);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 10px 12px;
+      font: 13px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      outline: none;
+    }
+    textarea { min-height: 220px; resize: vertical; font-size: 12.5px; }
+    textarea:focus, input:focus, select:focus { border-color: #3a88b8; }
+    textarea.drag { border-color: var(--accent); background: #10202c; }
+    .fields { display: grid; grid-template-columns: 1.4fr .8fr 1fr; gap: 10px; margin-top: 12px; }
+    .fields label { margin-bottom: 6px; }
+    .row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+    button {
+      border: 0;
+      border-radius: 10px;
+      padding: 9px 14px;
+      cursor: pointer;
+      font-weight: 600;
+      color: #081018;
+      background: var(--accent);
+    }
+    button.secondary { background: #2b3846; color: var(--text); }
+    button.good { background: var(--accent-2); }
+    button.danger { background: #5a2430; color: #ffd5db; }
+    button:hover { filter: brightness(1.08); }
+    button:disabled { opacity: .45; cursor: default; filter: none; }
+    .group { display: grid; gap: 10px; }
+    .group-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      align-items: center;
+      flex-wrap: wrap;
+      padding: 4px 2px 2px;
+      border-bottom: 1px solid var(--line);
+    }
+    .group-title { font-weight: 700; }
+    .group-title span { color: var(--muted); font-weight: 600; }
+    .item-actions { display: flex; gap: 6px; flex-shrink: 0; flex-wrap: wrap; }
+    .stats { color: var(--muted); margin-top: 10px; font-size: 13px; }
+    .stats b { color: var(--text); }
+    .err { color: var(--err); margin-top: 10px; white-space: pre-wrap; }
+    .list { display: grid; gap: 14px; }
+    .item {
+      background: #0c1116;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 12px;
+    }
+    .item-top { display: flex; justify-content: space-between; gap: 10px; align-items: flex-start; margin-bottom: 8px; }
+    .name { font-weight: 700; overflow-wrap: anywhere; }
+    .badges { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+    .badge {
+      font-size: 11px;
+      padding: 3px 7px;
+      border-radius: 999px;
+      background: #243140;
+      color: #c9d7e4;
+    }
+    .badge.tcp { background: #1c3a2c; color: #9be7b8; }
+    .badge.grpc { background: #2a2a4a; color: #c5c8ff; }
+    .badge.ws, .badge.httpupgrade, .badge.xhttp, .badge.http { background: #1c3344; color: #9ad4ff; }
+    .badge.hy2, .badge.hysteria { background: #3a2a16; color: #ffd19a; }
+    .badge.vmess, .badge.trojan, .badge.ss { background: #243044; color: #d5e4ff; }
+    .badge.warn { background: #3a2416; color: var(--warn); }
+    .link {
+      width: 100%;
+      word-break: break-all;
+      background: #080c10;
+      border: 1px solid #22303c;
+      border-radius: 8px;
+      padding: 8px 10px;
+      color: #cfe8ff;
+      font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      display: block;
+      white-space: pre-wrap;
+      cursor: text;
+      user-select: all;
+      -webkit-user-select: all;
+    }
+    .toast {
+      position: fixed;
+      left: 50%;
+      bottom: 22px;
+      transform: translateX(-50%);
+      background: #173246;
+      color: #e8eef5;
+      border: 1px solid #2f5b78;
+      padding: 10px 14px;
+      border-radius: 10px;
+      z-index: 20;
+      display: none;
+    }
+    .modal {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,.55);
+      z-index: 30;
+      align-items: center;
+      justify-content: center;
+      padding: 18px;
+    }
+    .modal.show { display: flex; }
+    .modal-box {
+      width: min(720px, 100%);
+      background: #171e27;
+      border: 1px solid #2a3542;
+      border-radius: 14px;
+      padding: 16px;
+    }
+    .modal-box textarea { min-height: 160px; margin: 10px 0 12px; }
+    .mini { padding: 6px 10px; font-size: 12px; }
+    .empty { color: var(--muted); padding: 18px 6px; }
+    footer { margin-top: 18px; color: var(--muted); font-size: 12px; }
+    footer a { color: var(--accent); }
+    @media (max-width: 760px) { .fields { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="title">
+      <svg width="36" height="36" viewBox="0 0 32 32" aria-hidden="true">
+        <rect width="32" height="32" rx="7" fill="#121920"/>
+        <path d="M11 9.5 7.5 16 11 22.5" fill="none" stroke="#4cc2ff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M21 9.5 24.5 16 21 22.5" fill="none" stroke="#7ee0a8" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+        <circle cx="16" cy="16" r="2.2" fill="#ffb454"/>
+      </svg>
+      <h1>Xray JSON → ссылки</h1>
+    </div>
+    <div class="sub">Вставьте конфиг Xray или Happ-подписку. Страница соберёт ссылки для Happ, v2rayN, Nekobox, Hiddify и Podkop. <br>Всё считается локально в браузере. Ключи и UUID никуда не отправляются.</div>
+
+    <div class="grid">
+      <section class="card">
+        <label for="raw">JSON, Base64 или готовые ссылки</label>
+        <textarea id="raw" placeholder='{"outbounds":[...],"remarks":"Example"}&#10;&#10;Можно перетащить .json / .txt сюда. Ctrl+Enter — расшифровать.'></textarea>
+        <div class="fields">
+          <div>
+            <label for="prefix">Префикс названия</label>
+            <input id="prefix" type="text" placeholder="пусто = remarks из JSON" />
+          </div>
+          <div>
+            <label for="hyScheme">Схема Hysteria2</label>
+            <select id="hyScheme">
+              <option value="hy2">hy2://</option>
+              <option value="hysteria2">hysteria2://</option>
+            </select>
+          </div>
+          <div>
+            <label for="filter">Поиск по результату</label>
+            <input id="filter" type="search" placeholder="tag, хост, reality..." />
+          </div>
+        </div>
+        <div class="row">
+          <button id="convert">Расшифровать</button>
+          <button class="secondary" id="clear">Очистить</button>
+          <button class="secondary" id="sample">Вставить пример</button>
+          <button class="secondary" id="fileBtn">Открыть файл</button>
+          <input id="file" type="file" accept=".json,.txt,.conf,application/json,text/plain" hidden />
+        </div>
+        <div class="stats" id="stats"></div>
+        <div class="err" id="error"></div>
+      </section>
+
+      <section class="card">
+        <div class="row" style="margin-top:0">
+          <button class="good" id="copyAll">Копировать все ссылки</button>
+          <button class="secondary" id="copyB64">Копировать Base64-подписку</button>
+          <button class="secondary" id="download">Скачать .txt</button>
+          <button class="secondary" id="dropWarn">Удалить подозрительные</button>
+          <button class="danger" id="clearResults">Удалить все результаты</button>
+        </div>
+        <div id="list" class="list" style="margin-top:14px">
+          <div class="empty">Пока пусто — вставьте JSON и нажмите «Расшифровать».</div>
+        </div>
+      </section>
+    </div>
+    <div class="toast" id="toast"></div>
+    <div class="modal" id="modal">
+      <div class="modal-box">
+        <div>Браузер запретил запись в буфер. Скопируйте вручную: Ctrl+C / ⌘C</div>
+        <textarea id="manualCopy" readonly></textarea>
+        <div class="row" style="margin-top:0">
+          <button type="button" id="manualSelect">Выделить всё</button>
+          <button type="button" class="secondary" id="modalClose">Закрыть</button>
+        </div>
+      </div>
+    </div>
+    <footer>
+      Формат: Happ
+      (<a href="https://www.happ.su/main/dev-docs/examples-of-links-and-parameters" target="_blank" rel="noopener">документация ссылок</a>),
+      v2rayN, официальный
+      <a href="https://v2.hysteria.network/docs/developers/URI-Scheme/" target="_blank" rel="noopener">hy2 URI</a>.
+    </footer>
+  </div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const raw = $("raw");
+const list = $("list");
+const stats = $("stats");
+const errorBox = $("error");
+const prefixInput = $("prefix");
+const filterInput = $("filter");
+const hyScheme = $("hyScheme");
+
+const SAMPLE = {
+  remarks: "Example-NL",
+  outbounds: [
+    {
+      protocol: "vless",
+      tag: "tcp-reality",
+      settings: {
+        vnext: [{
+          address: "node.example.com",
+          port: 443,
+          users: [{
+            encryption: "none",
+            flow: "xtls-rprx-vision",
+            id: "00000000-0000-4000-8000-000000000001"
+          }]
+        }]
+      },
+      streamSettings: {
+        network: "tcp",
+        security: "reality",
+        realitySettings: {
+          fingerprint: "chrome",
+          publicKey: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+          serverName: "www.example.com",
+          shortId: "abcd1234"
+        }
+      }
+    },
+    {
+      protocol: "vless",
+      tag: "grpc-reality",
+      settings: {
+        vnext: [{
+          address: "1.1.1.1",
+          port: 443,
+          users: [{
+            encryption: "none",
+            flow: "xtls-rprx-vision",
+            id: "00000000-0000-4000-8000-000000000001"
+          }]
+        }]
+      },
+      streamSettings: {
+        network: "grpc",
+        security: "reality",
+        grpcSettings: { serviceName: "grpc", multiMode: false },
+        realitySettings: {
+          fingerprint: "firefox",
+          publicKey: "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB",
+          serverName: "www.example.com"
+        }
+      }
+    },
+    {
+      protocol: "hysteria",
+      tag: "hy2",
+      settings: { address: "hy2.example.com", port: 443, version: 2 },
+      streamSettings: {
+        network: "hysteria",
+        security: "tls",
+        hysteriaSettings: { auth: "example-password", version: 2 },
+        tlsSettings: {
+          alpn: ["h3"],
+          fingerprint: "chrome",
+          serverName: "hy2.example.com"
+        }
+      }
+    }
+  ]
+};
+
+const SKIP_PROTO = new Set(["freedom", "blackhole", "dns", "block", "loopback", "http"]);
+const LINK_RE = /(?:vmess|vless|trojan|ss|hy2|hysteria2|hysteria):\/\/\S+/gi;
+
+function looksBrokenHost(host) {
+  if (!host) return true;
+  const h = String(host).trim();
+  if (!h || h === "[]") return true;
+  if (/^\d+$/.test(h) && h.length >= 8) return true;
+  if (/^(max|localhost|null|undefined|test|0\.0\.0\.0)$/i.test(h)) return true;
+  return false;
+}
+
+function first(v) {
+  if (Array.isArray(v)) return v.find((x) => x !== undefined && x !== null && String(x).trim() !== "") ?? "";
+  return v ?? "";
+}
+
+function add(params, key, value) {
+  if (value === undefined || value === null) return;
+  const s = String(value).trim();
+  if (!s) return;
+  params.set(key, s);
+}
+
+function encodeRemark(s) {
+  return encodeURIComponent(String(s || "").replace(/\s+/g, " ").trim());
+}
+
+function hostPort(host, port) {
+  let h = String(host).trim();
+  if (h.startsWith("[") && h.endsWith("]")) h = h.slice(1, -1);
+  const ipv6 = h.includes(":");
+  return `${ipv6 ? `[${h}]` : h}:${port}`;
+}
+
+function stripJsonc(s) {
+  let out = "";
+  let i = 0;
+  let inStr = false;
+  let esc = false;
+  while (i < s.length) {
+    const c = s[i];
+    if (inStr) {
+      out += c;
+      if (esc) esc = false;
+      else if (c === "\\") esc = true;
+      else if (c === '"') inStr = false;
+      i++;
+      continue;
+    }
+    if (c === '"') { inStr = true; out += c; i++; continue; }
+    if (c === "/" && s[i + 1] === "/") {
+      i += 2;
+      while (i < s.length && s[i] !== "\n") i++;
+      continue;
+    }
+    if (c === "/" && s[i + 1] === "*") {
+      i += 2;
+      while (i < s.length && !(s[i] === "*" && s[i + 1] === "/")) i++;
+      i += 2;
+      continue;
+    }
+    out += c;
+    i++;
+  }
+  return out.replace(/,\s*([}\]])/g, "$1");
+}
+
+function tryDecodeBase64(text) {
+  const compact = text.replace(/\s+/g, "");
+  if (compact.length < 24 || compact.length % 4 === 1) return null;
+  if (!/^[A-Za-z0-9+/_=-]+$/.test(compact)) return null;
+  if (/^[A-Za-z0-9+/=]+$/.test(compact) === false && !/^[A-Za-z0-9_-]+$/.test(compact)) return null;
+  try {
+    const pad = compact.replace(/-/g, "+").replace(/_/g, "/");
+    const padded = pad + "=".repeat((4 - (pad.length % 4)) % 4);
+    const bin = atob(padded);
+    const bytes = Uint8Array.from(bin, (ch) => ch.charCodeAt(0));
+    const decoded = new TextDecoder("utf-8", { fatal: false }).decode(bytes);
+    if (decoded.includes("{") || decoded.includes("://")) return decoded;
+  } catch (_) {}
+  return null;
+}
+
+function unwrapInput(text) {
+  const trimmed = text.trim();
+  if (!trimmed) return trimmed;
+  if (trimmed.startsWith("{") || trimmed.startsWith("[") || trimmed.includes("://")) return trimmed;
+  return tryDecodeBase64(trimmed) || trimmed;
+}
+
+function extractConfig(text) {
+  const trimmed = text.trim();
+  if (!trimmed) throw new Error("Пусто.");
+  const tryParse = (s) => JSON.parse(stripJsonc(s));
+  try { return normalizeConfig(tryParse(trimmed)); } catch (_) {}
+  const startObj = trimmed.indexOf("{");
+  const startArr = trimmed.indexOf("[");
+  const start = startObj === -1 ? startArr : startArr === -1 ? startObj : Math.min(startObj, startArr);
+  if (start < 0) throw new Error("Не получилось разобрать JSON.");
+  const opener = trimmed[start];
+  const closer = opener === "{" ? "}" : "]";
+  const end = trimmed.lastIndexOf(closer);
+  if (end <= start) throw new Error("Не получилось разобрать JSON.");
+  return normalizeConfig(tryParse(trimmed.slice(start, end + 1)));
+}
+
+function normalizeConfig(cfg) {
+  if (Array.isArray(cfg)) {
+    if (cfg.length && cfg[0] && (cfg[0].protocol || cfg[0].settings)) return { remarks: "", outbounds: cfg };
+    throw new Error("Ожидался объект конфига или массив outbound’ов.");
+  }
+  if (!cfg || typeof cfg !== "object") throw new Error("Некорректный JSON.");
+  if (!cfg.outbounds && !cfg.outbound && cfg.protocol) return { remarks: cfg.remarks || cfg.ps || "", outbounds: [cfg] };
+  return cfg;
+}
+
+function normalizeNetwork(net) {
+  const n = String(net || "tcp").toLowerCase();
+  if (n === "raw") return "tcp";
+  if (n === "gun") return "grpc";
+  if (n === "splithttp") return "xhttp";
+  if (n === "h2" || n === "http2") return "http";
+  return n;
+}
+
+function grpcMode(gs) {
+  if (!gs) return "";
+  if (gs.multiMode === true || gs.mode === true || String(gs.mode).toLowerCase() === "multi") return "multi";
+  return "";
+}
+
+function visionAllowed(network) {
+  return network === "tcp" || network === "raw";
+}
+
+function buildQuery(pairs) {
+  const params = new URLSearchParams();
+  for (const [k, v] of pairs) add(params, k, v);
+  return params.toString();
+}
+
+function alpnOf(ts) {
+  if (!ts || ts.alpn == null || ts.alpn === "") return "";
+  return Array.isArray(ts.alpn) ? ts.alpn.join(",") : String(ts.alpn);
+}
+
+function prefixOf(cfg) {
+  const custom = prefixInput.value.trim();
+  if (custom) return custom + " / ";
+  return cfg && cfg.remarks ? String(cfg.remarks).trim() + " / " : "";
+}
+
+function vlessEndpoints(ob) {
+  const vnext = ob.settings?.vnext;
+  if (Array.isArray(vnext) && vnext.length) {
+    const out = [];
+    vnext.forEach((vn) => {
+      const users = Array.isArray(vn.users) && vn.users.length ? vn.users : [{}];
+      users.forEach((user) => out.push({ host: vn.address, port: vn.port, user }));
+    });
+    return out;
+  }
+  const st = ob.settings || {};
+  if (st.address && st.port && (st.id || st.uuid)) return [{ host: st.address, port: st.port, user: st }];
+  return [];
+}
+
+function transportPairs(ss) {
+  const network = normalizeNetwork(ss.network);
+  const gs = ss.grpcSettings || {};
+  const ws = ss.wsSettings || {};
+  const tcp = ss.tcpSettings || {};
+  const xs = ss.xhttpSettings || ss.splithttpSettings || {};
+  const hu = ss.httpupgradeSettings || {};
+  const http = ss.httpSettings || {};
+  const header = tcp.header || {};
+  const reqHost = header.request?.headers?.Host || header.request?.headers?.host;
+  const wsHost = ws.headers?.Host || ws.headers?.host;
+  const pairs = [["type", network]];
+  if (network === "grpc") {
+    pairs.push(["serviceName", gs.serviceName || ""]);
+    pairs.push(["mode", grpcMode(gs)]);
+    pairs.push(["authority", gs.authority]);
+  } else if (network === "ws") {
+    pairs.push(["path", ws.path]);
+    pairs.push(["host", wsHost]);
+    pairs.push(["ed", ws.ed || ws.maxEarlyData]);
+  } else if (network === "httpupgrade") {
+    pairs.push(["path", hu.path]);
+    pairs.push(["host", hu.host || hu.headers?.Host || hu.headers?.host]);
+  } else if (network === "xhttp") {
+    pairs.push(["path", xs.path]);
+    pairs.push(["host", xs.host]);
+    pairs.push(["mode", xs.mode && xs.mode !== "auto" ? xs.mode : ""]);
+    if (xs.extra) pairs.push(["extra", typeof xs.extra === "string" ? xs.extra : JSON.stringify(xs.extra)]);
+  } else if (network === "http") {
+    pairs.push(["path", first(http.path)]);
+    pairs.push(["host", first(http.host)]);
+  } else if (network === "tcp" && header.type && header.type !== "none") {
+    pairs.push(["headerType", header.type]);
+    pairs.push(["host", first(reqHost)]);
+    pairs.push(["path", first(header.request?.path)]);
+  }
+  return { network, pairs };
+}
+
+function securityPairs(ss) {
+  const rs = ss.realitySettings || {};
+  const ts = ss.tlsSettings || {};
+  const security = String(ss.security || "none").toLowerCase();
+  const sni = first(rs.serverName ?? rs.serverNames) || ts.serverName || "";
+  const fp = rs.fingerprint || ts.fingerprint || "";
+  const sid = first(rs.shortId ?? rs.shortIds);
+  const pbk = rs.publicKey || rs.password || "";
+  const pairs = [
+    ["security", security],
+    ["sni", sni],
+    ["fp", fp],
+    ["pbk", security === "reality" ? pbk : ""],
+    ["sid", security === "reality" ? sid : ""],
+    ["spx", rs.spiderX],
+    ["alpn", alpnOf(ts)],
+    ["allowInsecure", ts.allowInsecure ? "1" : ""],
+  ];
+  return { security, sni, fp, pbk, sid, pairs };
+}
+
+function finishNode(partial) {
+  partial.warn = looksBrokenHost(partial.host) || !!partial.missingKey;
+  return partial;
+}
+
+function buildVless(ob, prefix, index) {
+  const eps = vlessEndpoints(ob);
+  if (!eps.length) return [];
+  const ss = ob.streamSettings || {};
+  const { network, pairs: tPairs } = transportPairs(ss);
+  const sec = securityPairs(ss);
+  return eps.map((ep, n) => {
+    const user = ep.user || {};
+    const uuid = user.id || user.uuid;
+    if (!ep.host || !ep.port || !uuid) return null;
+    const notes = [];
+    let flow = String(user.flow || "").trim();
+    if (flow && !visionAllowed(network)) {
+      notes.push("flow убран: Vision только для TCP");
+      flow = "";
+    }
+    if (sec.security === "reality" && !sec.pbk) notes.push("нет publicKey Reality");
+    const pairs = [
+      ["encryption", user.encryption || "none"],
+      ["flow", flow],
+      ...sec.pairs,
+      ...tPairs,
+    ];
+    const remark = `${prefix}${ob.tag || "node-" + index}${eps.length > 1 ? "-" + (n + 1) : ""}`.trim();
+    return finishNode({
+      proto: "vless",
+      transport: network,
+      security: sec.security,
+      host: ep.host,
+      port: ep.port,
+      remark,
+      url: `vless://${uuid}@${hostPort(ep.host, ep.port)}?${buildQuery(pairs)}#${encodeRemark(remark)}`,
+      missingKey: sec.security === "reality" && !sec.pbk,
+      notes
+    });
+  }).filter(Boolean);
+}
+
+function buildVmess(ob, prefix, index) {
+  const eps = vlessEndpoints(ob);
+  if (!eps.length) return [];
+  const ss = ob.streamSettings || {};
+  const { network } = transportPairs(ss);
+  const sec = securityPairs(ss);
+  const ws = ss.wsSettings || {};
+  const tcp = ss.tcpSettings || {};
+  const http = ss.httpSettings || {};
+  return eps.map((ep, n) => {
+    const user = ep.user || {};
+    const uuid = user.id || user.uuid;
+    if (!ep.host || !ep.port || !uuid) return null;
+    const remark = `${prefix}${ob.tag || "vmess-" + index}${eps.length > 1 ? "-" + (n + 1) : ""}`.trim();
+    const hostHeader = first(ws.headers?.Host || ws.headers?.host || http.host);
+    const payload = {
+      v: "2",
+      ps: remark,
+      add: String(ep.host),
+      port: String(ep.port),
+      id: uuid,
+      aid: String(user.alterId || 0),
+      scy: user.security || "auto",
+      net: network,
+      type: tcp.header?.type || "none",
+      host: hostHeader || "",
+      path: ws.path || first(http.path) || "",
+      tls: sec.security === "tls" ? "tls" : "",
+      sni: sec.sni || "",
+      fp: sec.fp || ""
+    };
+    return finishNode({
+      proto: "vmess",
+      transport: network,
+      security: sec.security,
+      host: ep.host,
+      port: ep.port,
+      remark,
+      url: `vmess://${toBase64(JSON.stringify(payload))}`,
+      notes: []
+    });
+  }).filter(Boolean);
+}
+
+function serverList(ob) {
+  const st = ob.settings || {};
+  if (Array.isArray(st.servers) && st.servers.length) return st.servers;
+  if (st.address && st.port) return [st];
+  return [];
+}
+
+function buildTrojan(ob, prefix, index) {
+  const ss = ob.streamSettings || {};
+  const { network, pairs: tPairs } = transportPairs(ss);
+  const sec = securityPairs(ss);
+  return serverList(ob).map((srv, n) => {
+    const host = srv.address;
+    const port = srv.port;
+    const password = srv.password || srv.auth;
+    if (!host || !port || !password) return null;
+    const remark = `${prefix}${ob.tag || "trojan-" + index}${serverList(ob).length > 1 ? "-" + (n + 1) : ""}`.trim();
+    const pairs = [...sec.pairs, ...tPairs];
+    return finishNode({
+      proto: "trojan",
+      transport: network,
+      security: sec.security || "tls",
+      host,
+      port,
+      remark,
+      url: `trojan://${encodeURIComponent(password)}@${hostPort(host, port)}?${buildQuery(pairs)}#${encodeRemark(remark)}`,
+      notes: []
+    });
+  }).filter(Boolean);
+}
+
+function buildSs(ob, prefix, index) {
+  return serverList(ob).map((srv, n) => {
+    const host = srv.address;
+    const port = srv.port;
+    const method = srv.method || srv.cipher;
+    const password = srv.password;
+    if (!host || !port || !method || !password) return null;
+    const remark = `${prefix}${ob.tag || "ss-" + index}${serverList(ob).length > 1 ? "-" + (n + 1) : ""}`.trim();
+    const user = toBase64(`${method}:${password}`).replace(/=+$/g, "");
+    return finishNode({
+      proto: "ss",
+      transport: method,
+      security: "none",
+      host,
+      port,
+      remark,
+      url: `ss://${user}@${hostPort(host, port)}#${encodeRemark(remark)}`,
+      notes: []
+    });
+  }).filter(Boolean);
+}
+
+function buildHy2(ob, prefix, index) {
+  const st = ob.settings || {};
+  const ss = ob.streamSettings || {};
+  const hs = ss.hysteriaSettings || st.hysteriaSettings || st || {};
+  const ts = ss.tlsSettings || {};
+  const rawVersion = hs.version ?? st.version ?? ob.version;
+  const version = rawVersion == null || rawVersion === "" ? 2 : Number(rawVersion);
+  const host = st.address || st.server || hs.address;
+  const hop = hs.udphop || st.udphop || {};
+  const port = hop.port || st.port || hs.port;
+  const auth = hs.auth || st.auth || st.password || hs.password || "";
+  if (!host || !port || !auth) return [];
+  const remark = `${prefix}${ob.tag || "hy2-" + index}`.trim();
+  if (version === 1) {
+    const pairs = [
+      ["protocol", hs.protocol || "udp"],
+      ["auth", auth],
+      ["peer", ts.serverName || host],
+      ["insecure", ts.allowInsecure ? "1" : ""],
+      ["alpn", alpnOf(ts)],
+      ["obfs", hs.obfs || st.obfs],
+      ["obfsParam", hs.obfsPassword || st.obfsPassword],
+      ["upmbps", hs.up || hs.upmbps || st.up],
+      ["downmbps", hs.down || hs.downmbps || st.down],
+    ];
+    return [finishNode({
+      proto: "hysteria",
+      transport: "hysteria1",
+      security: "tls",
+      host,
+      port,
+      remark,
+      url: `hysteria://${hostPort(host, port)}?${buildQuery(pairs)}#${encodeRemark(remark)}`,
+      notes: ["это Hysteria 1, не hy2"]
+    })];
+  }
+  const pairs = [
+    ["sni", ts.serverName],
+    ["alpn", alpnOf(ts) || "h3"],
+    ["fp", ts.fingerprint],
+    ["insecure", ts.allowInsecure ? "1" : ""],
+    ["obfs", hs.obfs || st.obfs],
+    ["obfs-password", hs.obfsPassword || hs["obfs-password"] || st.obfsPassword],
+    ["pinSHA256", ts.pinnedPeerCertSha256 || hs.pinSHA256],
+    ["mportHopInt", hop.interval],
+  ];
+  const scheme = hyScheme.value === "hysteria2" ? "hysteria2" : "hy2";
+  return [finishNode({
+    proto: "hy2",
+    transport: "hysteria2",
+    security: ss.security || "tls",
+    host,
+    port,
+    remark,
+    url: `${scheme}://${encodeURIComponent(auth)}@${hostPort(host, port)}/?${buildQuery(pairs)}#${encodeRemark(remark)}`,
+    notes: []
+  })];
+}
+
+function convert(cfg) {
+  const outbounds = cfg.outbounds || cfg.outbound || [];
+  if (!Array.isArray(outbounds) || !outbounds.length) throw new Error("В JSON нет outbounds.");
+  const prefix = prefixOf(cfg);
+  const nodes = [];
+  const skipped = [];
+  outbounds.forEach((ob, i) => {
+    const proto = String(ob.protocol || "").toLowerCase();
+    if (SKIP_PROTO.has(proto) || proto === "") return;
+    let built = [];
+    if (proto === "vless") built = buildVless(ob, prefix, i + 1);
+    else if (proto === "vmess") built = buildVmess(ob, prefix, i + 1);
+    else if (proto === "trojan") built = buildTrojan(ob, prefix, i + 1);
+    else if (proto === "shadowsocks" || proto === "ss") built = buildSs(ob, prefix, i + 1);
+    else if (proto === "hysteria" || proto === "hysteria2" || proto === "hy2") built = buildHy2(ob, prefix, i + 1);
+    else skipped.push(`${ob.protocol || "unknown"}/${ob.tag || i + 1}`);
+    built.forEach((node) => {
+      node.id = `${proto}-${i}-${nodes.length}-${node.host}-${node.port}-${node.transport}`;
+      nodes.push(node);
+    });
+    if (!built.length && !SKIP_PROTO.has(proto) && proto !== "vless" && !["vmess", "trojan", "shadowsocks", "ss", "hysteria", "hysteria2", "hy2"].includes(proto)) {
+      /* already skipped */
+    } else if (!built.length && ["vless", "vmess", "trojan", "shadowsocks", "ss", "hysteria", "hysteria2", "hy2"].includes(proto)) {
+      skipped.push(`${proto}/${ob.tag || i + 1}: не хватает адреса, порта или ключа`);
+    }
+  });
+  return { nodes, skipped };
+}
+
+function splitAuthority(authority) {
+  if (authority.startsWith("[")) {
+    const end = authority.indexOf("]");
+    if (end > 0) return { host: authority.slice(1, end), port: authority.slice(end + 2) || "443" };
+  }
+  const i = authority.lastIndexOf(":");
+  if (i < 0) return { host: authority, port: "443" };
+  return { host: authority.slice(0, i), port: authority.slice(i + 1) };
+}
+
+function parseShareLinks(text) {
+  const found = text.match(LINK_RE) || [];
+  return found.map((url, i) => {
+    const hash = url.indexOf("#");
+    const main = hash >= 0 ? url.slice(0, hash) : url;
+    let remark = hash >= 0 ? safeDecode(url.slice(hash + 1)) : `link-${i + 1}`;
+    const scheme = main.slice(0, main.indexOf("://")).toLowerCase();
+    if (scheme === "vmess") {
+      return finishNode({
+        id: `import-${i}`,
+        proto: "vmess",
+        transport: "vmess",
+        security: "",
+        host: remark,
+        port: "",
+        remark,
+        url,
+        notes: ["импортирована как есть"]
+      });
+    }
+    const body = main.slice(main.indexOf("://") + 3);
+    const q = body.indexOf("?");
+    const authHost = q >= 0 ? body.slice(0, q) : body;
+    const params = new URLSearchParams(q >= 0 ? body.slice(q + 1) : "");
+    const at = authHost.lastIndexOf("@");
+    const authority = at >= 0 ? authHost.slice(at + 1) : authHost;
+    const { host, port } = splitAuthority(authority.replace(/\/$/, ""));
+    const proto = scheme === "hysteria2" || scheme === "hy2" ? "hy2" : scheme === "hysteria" ? "hysteria" : scheme;
+    return finishNode({
+      id: `import-${i}`,
+      proto,
+      transport: params.get("type") || (proto === "hy2" ? "hysteria2" : proto),
+      security: params.get("security") || (proto === "hy2" ? "tls" : ""),
+      host,
+      port,
+      remark,
+      url,
+      notes: ["импортирована как есть"]
+    });
+  });
+}
+
+function safeDecode(s) {
+  try { return decodeURIComponent(s); } catch (_) { return s; }
+}
+
+function groupKey(n) {
+  if (n.proto === "hy2") return "Hysteria2";
+  if (n.proto === "hysteria") return "Hysteria1";
+  if (n.proto === "vmess") return "VMess";
+  if (n.proto === "trojan") return "Trojan";
+  if (n.proto === "ss") return "Shadowsocks";
+  const sec = n.security && n.security !== "none" ? n.security.toUpperCase() : "NO-TLS";
+  return `VLESS · ${String(n.transport || "tcp").toUpperCase()} · ${sec}`;
+}
+
+function groupOrder(key) {
+  const rank = [
+    "VLESS · TCP · REALITY",
+    "VLESS · GRPC · REALITY",
+    "VLESS · WS · REALITY",
+    "VLESS · XHTTP · REALITY",
+    "VLESS · TCP · TLS",
+    "VLESS · GRPC · TLS",
+    "VLESS · WS · TLS",
+    "Trojan",
+    "VMess",
+    "Shadowsocks",
+    "Hysteria2",
+    "Hysteria1"
+  ];
+  const i = rank.indexOf(key);
+  return i === -1 ? 50 + key.charCodeAt(0) : i;
+}
+
+function groupedNodes(nodes) {
+  const map = new Map();
+  nodes.forEach((n) => {
+    const key = groupKey(n);
+    if (!map.has(key)) map.set(key, []);
+    map.get(key).push(n);
+  });
+  return [...map.entries()].sort((a, b) => groupOrder(a[0]) - groupOrder(b[0]));
+}
+
+function escapeHtml(s) {
+  return String(s)
+    .replace(/&/g, "&" + "amp;")
+    .replace(/</g, "&" + "lt;")
+    .replace(/>/g, "&" + "gt;")
+    .replace(/"/g, "&" + "quot;");
+}
+
+let lastNodes = [];
+let lastExtra = "";
+
+function visibleNodes() {
+  const q = filterInput.value.trim().toLowerCase();
+  if (!q) return lastNodes;
+  return lastNodes.filter((n) => `${n.remark} ${n.url} ${n.host} ${n.transport} ${n.proto}`.toLowerCase().includes(q));
+}
+
+function renderItem(n) {
+  return `
+    <div class="item" data-id="${escapeHtml(n.id)}">
+      <div class="item-top">
+        <div>
+          <div class="name">${escapeHtml(n.remark)}</div>
+          <div class="badges">
+            <span class="badge ${n.proto === "hy2" ? "hy2" : n.proto === "hysteria" ? "hysteria" : n.transport}">${escapeHtml(n.proto)} / ${escapeHtml(n.transport)}</span>
+            <span class="badge">${escapeHtml(String(n.host))}${n.port ? ":" + escapeHtml(String(n.port)) : ""}</span>
+            ${n.warn ? `<span class="badge warn">проверить адрес / ключ</span>` : ""}
+            ${(n.notes || []).map((note) => `<span class="badge warn">${escapeHtml(note)}</span>`).join("")}
+          </div>
+        </div>
+        <div class="item-actions">
+          <button type="button" class="mini secondary" data-copy="${escapeHtml(n.id)}">Копировать</button>
+          <button type="button" class="mini danger" data-del="${escapeHtml(n.id)}">Удалить</button>
+        </div>
+      </div>
+      <div class="link">${escapeHtml(n.url)}</div>
+    </div>`;
+}
+
+function render(extra) {
+  if (extra !== undefined) lastExtra = extra;
+  const nodes = visibleNodes();
+  if (!lastNodes.length) {
+    list.innerHTML = `<div class="empty">Список пуст — расшифруйте конфиг или все ссылки удалены.</div>`;
+    stats.textContent = lastExtra;
+    return;
+  }
+  if (!nodes.length) {
+    list.innerHTML = `<div class="empty">Ничего не найдено по фильтру.</div>`;
+    stats.innerHTML = `В списке <b>${lastNodes.length}</b>, по фильтру 0.${lastExtra ? " · " + escapeHtml(lastExtra) : ""}`;
+    return;
+  }
+  const groups = groupedNodes(nodes);
+  list.innerHTML = groups.map(([title, items]) => `
+    <div class="group">
+      <div class="group-head">
+        <div class="group-title">${escapeHtml(title)} <span>· ${items.length}</span></div>
+        <div class="item-actions">
+          <button type="button" class="mini secondary" data-copy-group="${escapeHtml(title)}">Копировать группу</button>
+          <button type="button" class="mini danger" data-del-group="${escapeHtml(title)}">Удалить группу</button>
+        </div>
+      </div>
+      ${items.map(renderItem).join("")}
+    </div>
+  `).join("");
+  const parts = groupedNodes(lastNodes).map(([title, items]) => `${title}: ${items.length}`).join(" · ");
+  const warnCount = lastNodes.filter((n) => n.warn).length;
+  stats.innerHTML = `Готово: <b>${lastNodes.length}</b> ссылок${nodes.length !== lastNodes.length ? `, показано ${nodes.length}` : ""}. ${escapeHtml(parts)}${warnCount ? ` · подозрительных: ${warnCount}` : ""}${lastExtra ? " · " + escapeHtml(lastExtra) : ""}`;
+}
+
+function run() {
+  errorBox.textContent = "";
+  const text = unwrapInput(raw.value);
+  if (!text) {
+    errorBox.textContent = "Пусто.";
+    return;
+  }
+  try {
+    const cfg = extractConfig(text);
+    const { nodes, skipped } = convert(cfg);
+    if (!nodes.length) throw new Error(skipped.length ? `Не собрано ни одной ссылки. ${skipped.join("; ")}` : "Не собрано ни одной ссылки.");
+    lastNodes = nodes;
+    render(skipped.length ? `Пропущено: ${skipped.join(", ")}` : "");
+    return;
+  } catch (jsonError) {
+    const links = parseShareLinks(text);
+    if (links.length) {
+      lastNodes = links;
+      render("Готовые ссылки импортированы без пересборки параметров.");
+      return;
+    }
+    lastNodes = [];
+    list.innerHTML = `<div class="empty">Ошибка разбора.</div>`;
+    stats.textContent = "";
+    lastExtra = "";
+    errorBox.textContent = jsonError.message || String(jsonError);
+  }
+}
+
+function toBase64(text) {
+  const bytes = new TextEncoder().encode(text);
+  let bin = "";
+  bytes.forEach((b) => { bin += String.fromCharCode(b); });
+  return btoa(bin);
+}
+
+function showToast(msg) {
+  const el = $("toast");
+  el.textContent = msg;
+  el.style.display = "block";
+  clearTimeout(showToast._t);
+  showToast._t = setTimeout(() => { el.style.display = "none"; }, 1800);
+}
+
+function showManualCopy(text) {
+  const modal = $("modal");
+  const field = $("manualCopy");
+  field.value = text;
+  modal.classList.add("show");
+  setTimeout(() => { field.focus(); field.select(); }, 0);
+}
+
+function hideManualCopy() {
+  $("modal").classList.remove("show");
+}
+
+function fallbackCopy(text) {
+  const ta = document.createElement("textarea");
+  ta.value = text;
+  ta.setAttribute("readonly", "");
+  ta.style.cssText = "position:fixed;top:0;left:0;width:1px;height:1px;opacity:0;border:0;padding:0;";
+  document.body.appendChild(ta);
+  ta.focus();
+  ta.select();
+  ta.setSelectionRange(0, ta.value.length);
+  let ok = false;
+  try { ok = document.execCommand("copy"); } catch (_) {}
+  ta.remove();
+  return ok;
+}
+
+async function copyText(text) {
+  if (!text) return false;
+  try {
+    if (navigator.clipboard && typeof navigator.clipboard.writeText === "function" && window.isSecureContext) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch (_) {}
+  if (fallbackCopy(text)) return true;
+  showManualCopy(text);
+  return false;
+}
+
+async function flashCopy(btn, text, okLabel) {
+  const original = btn.textContent;
+  const ok = await copyText(text);
+  btn.textContent = ok ? (okLabel || "Скопировано") : "Скопируйте вручную";
+  if (ok) showToast("Скопировано");
+  setTimeout(() => { btn.textContent = original; }, 1400);
+}
+
+function exportText() {
+  return lastNodes.map((n) => n.url).join("\n");
+}
+
+$("convert").addEventListener("click", run);
+$("clear").addEventListener("click", () => {
+  raw.value = "";
+  lastNodes = [];
+  lastExtra = "";
+  list.innerHTML = `<div class="empty">Пока пусто — вставьте JSON и нажмите «Расшифровать».</div>`;
+  stats.textContent = "";
+  errorBox.textContent = "";
+});
+$("sample").addEventListener("click", () => {
+  raw.value = JSON.stringify(SAMPLE, null, 2);
+  run();
+});
+$("fileBtn").addEventListener("click", () => $("file").click());
+$("file").addEventListener("change", async () => {
+  const file = $("file").files && $("file").files[0];
+  if (!file) return;
+  raw.value = await file.text();
+  run();
+  $("file").value = "";
+});
+raw.addEventListener("dragover", (e) => { e.preventDefault(); raw.classList.add("drag"); });
+raw.addEventListener("dragleave", () => raw.classList.remove("drag"));
+raw.addEventListener("drop", async (e) => {
+  e.preventDefault();
+  raw.classList.remove("drag");
+  const file = e.dataTransfer?.files?.[0];
+  if (!file) return;
+  raw.value = await file.text();
+  run();
+});
+raw.addEventListener("paste", () => setTimeout(run, 0));
+raw.addEventListener("keydown", (e) => {
+  if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
+    e.preventDefault();
+    run();
+  }
+});
+filterInput.addEventListener("input", () => render());
+hyScheme.addEventListener("change", () => { if (raw.value.trim()) run(); });
+prefixInput.addEventListener("change", () => { if (raw.value.trim()) run(); });
+
+$("copyAll").addEventListener("click", () => {
+  if (!lastNodes.length) return showToast("Сначала расшифруйте конфиг");
+  flashCopy($("copyAll"), exportText());
+});
+$("copyB64").addEventListener("click", () => {
+  if (!lastNodes.length) return showToast("Сначала расшифруйте конфиг");
+  flashCopy($("copyB64"), toBase64(exportText()));
+});
+$("download").addEventListener("click", () => {
+  if (!lastNodes.length) return showToast("Сначала расшифруйте конфиг");
+  const blob = new Blob([exportText() + "\n"], { type: "text/plain;charset=utf-8" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  const name = (prefixInput.value.trim() || "subscription").replace(/[^\w.-]+/g, "_");
+  a.download = name + ".txt";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 500);
+});
+function removeById(id) {
+  lastNodes = lastNodes.filter((n) => n.id !== id);
+  render();
+  showToast("Ссылка удалена");
+}
+function removeGroup(title) {
+  lastNodes = lastNodes.filter((n) => groupKey(n) !== title);
+  render();
+  showToast("Группа удалена");
+}
+$("dropWarn").addEventListener("click", () => {
+  const before = lastNodes.length;
+  lastNodes = lastNodes.filter((n) => !n.warn);
+  render();
+  showToast(before === lastNodes.length ? "Подозрительных нет" : "Подозрительные удалены");
+});
+$("clearResults").addEventListener("click", () => {
+  lastNodes = [];
+  render("");
+  showToast("Результаты очищены");
+});
+list.addEventListener("click", (e) => {
+  const del = e.target.closest("[data-del]");
+  if (del) return removeById(del.dataset.del);
+  const delGroup = e.target.closest("[data-del-group]");
+  if (delGroup) return removeGroup(delGroup.dataset.delGroup);
+  const copyGroup = e.target.closest("[data-copy-group]");
+  if (copyGroup) {
+    const urls = visibleNodes().filter((n) => groupKey(n) === copyGroup.dataset.copyGroup).map((n) => n.url);
+    if (urls.length) flashCopy(copyGroup, urls.join("\n"));
+    return;
+  }
+  const btn = e.target.closest("[data-copy]");
+  if (btn) {
+    const node = lastNodes.find((n) => n.id === btn.dataset.copy);
+    if (node) flashCopy(btn, node.url, "Ок");
+    return;
+  }
+  const link = e.target.closest(".link");
+  if (!link) return;
+  const range = document.createRange();
+  range.selectNodeContents(link);
+  const sel = window.getSelection();
+  sel.removeAllRanges();
+  sel.addRange(range);
+});
+$("manualSelect").addEventListener("click", () => {
+  $("manualCopy").focus();
+  $("manualCopy").select();
+  fallbackCopy($("manualCopy").value);
+});
+$("modalClose").addEventListener("click", hideManualCopy);
+$("modal").addEventListener("click", (e) => {
+  if (e.target.id === "modal") hideManualCopy();
+});
+</script>
+</body>
+</html>
